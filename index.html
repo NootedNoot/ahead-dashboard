@@ -357,6 +357,19 @@
       text-align: center;
       opacity: 0.7;
     }
+
+    .test-mode-toggle {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+    }
+
+    .test-mode-toggle input {
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -408,7 +421,13 @@
   <div class="ahead-card">
     <div class="ahead-header">
       <span class="ahead-title">Ask Ahead</span>
-      <button class="ask-btn" id="ask-btn" onclick="askAhead()">Ask Ahead</button>
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <label class="test-mode-toggle">
+          <input type="checkbox" id="dry-run-toggle" />
+          Test mode
+        </label>
+        <button class="ask-btn" id="ask-btn" onclick="askAhead()">Ask Ahead</button>
+      </div>
     </div>
     <div class="ahead-response" id="ahead-response"></div>
     <div class="ahead-disclaimer">Ahead provides pattern insights only — not medical advice. Always consult your care team.</div>
@@ -573,7 +592,11 @@ Keep the whole response under 150 words. Be direct and friendly, not clinical.`;
       const res = await fetch('https://ahead-backend-production-ee80.up.railway.app/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ readings, latest })
+        body: JSON.stringify({
+          readings,
+          latest,
+          dryRun: document.getElementById('dry-run-toggle').checked
+        })
       });
 
       const data = await res.json();
