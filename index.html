@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ahead — Live Glucose</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0618;
+      --surface:   #160d27;
+      --border:    #2a1a4a;
+      --accent:    #8b5cf6;
+      --accent2:   #a78bfa;
+      --low:       #f87171;
+      --high:      #fbbf24;
+      --ok:        #34d399;
+      --text:      #e2d9f3;
+      --muted:     #7c6fa0;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 3rem;
+      gap: 2rem;
+      min-height: 100vh;
+    }
+
+    header {
+      width: 100%;
+      max-width: 700px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent2);
+    }
+
+    .tagline {
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .glucose-card {
+      width: 100%;
+      max-width: 700px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      position: relative;
+    }
+
+    .glucose-card::before {
+      content: '';
+      position: absolute;
+      top: -60px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 300px;
+      height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(139,92,246,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .glucose-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .glucose-number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(5rem, 20vw, 8rem);
+      font-weight: 700;
+      line-height: 1;
+      transition: color 0.6s ease;
+      text-shadow: 0 0 40px currentColor;
+    }
+
+    .glucose-number.ok   { color: var(--ok); }
+    .glucose-number.high { color: var(--high); }
+    .glucose-number.low  { color: var(--low); }
+
+    .glucose-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 0.4rem;
+    }
+
+    .trend-arrow { font-size: 2.2rem; line-height: 1; }
+
+    .rate-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .rate-per-min {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .delta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1;
+    }
+
+    .timestamp {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+
+    .status-bar {
+      width: 100%;
+      max-width: 700px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 0.25rem;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 6px var(--ok);
+      animation: pulse 2s infinite;
+      margin-right: 0.4rem;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .status-text { font-size: 0.72rem; color: var(--muted); }
+
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-family: 'Inter', sans-serif;
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent2); }
+
+    .graph-card {
+      width: 100%;
+      max-width: 700px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.5rem 1rem 1rem;
+    }
+
+    .graph-title {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      padding-left: 0.5rem;
+    }
+
+    #glucose-chart { width: 100%; height: 220px; touch-action: none; }
+
+    .time-controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding-left: 0.25rem;
+    }
+
+    .time-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-family: 'Inter', sans-serif;
+      padding: 0.3rem 0.9rem;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .time-btn.active {
+      background: rgba(139,92,246,0.15);
+      border-color: var(--accent);
+      color: var(--accent2);
+    }
+
+    .range-legend {
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* Ask Ahead card */
+    .ahead-card {
+      width: 100%;
+      max-width: 700px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .ahead-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .ahead-title {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .ask-btn {
+      background: linear-gradient(135deg, #6d28d9, #8b5cf6);
+      border: none;
+      color: white;
+      font-size: 0.85rem;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      padding: 0.6rem 1.4rem;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.03em;
+    }
+
+    .ask-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .ask-btn:active { transform: translateY(0); }
+    .ask-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .ahead-response {
+      background: rgba(139,92,246,0.06);
+      border: 1px solid rgba(139,92,246,0.15);
+      border-radius: 14px;
+      padding: 1.2rem;
+      font-size: 0.9rem;
+      line-height: 1.65;
+      color: var(--text);
+      min-height: 80px;
+      display: none;
+    }
+
+    .ahead-response.visible { display: block; }
+
+    .ahead-response.loading {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .option-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      margin-top: 0.8rem;
+    }
+
+    .option-item {
+      background: rgba(139,92,246,0.08);
+      border: 1px solid rgba(139,92,246,0.2);
+      border-radius: 10px;
+      padding: 0.7rem 1rem;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .option-num {
+      color: var(--accent2);
+      font-weight: 600;
+      margin-right: 0.4rem;
+    }
+
+    .ahead-disclaimer {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-align: center;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="logo">Ahead</span>
+    <span class="tagline">Catch it before the thing beeps.</span>
+  </header>
+
+  <div class="glucose-card">
+    <span class="glucose-label">Current Glucose</span>
+    <div class="glucose-number ok" id="glucose-number">---</div>
+    <div class="glucose-meta">
+      <span class="trend-arrow" id="trend-arrow">→</span>
+      <div class="rate-block">
+        <span class="rate-per-min" id="rate-per-min">— mg/dL/min</span>
+        <span class="delta" id="delta-val"></span>
+      </div>
+    </div>
+    <span class="timestamp" id="timestamp">Fetching data...</span>
+  </div>
+
+  <div class="status-bar">
+    <div>
+      <span class="status-dot" id="status-dot"></span>
+      <span class="status-text" id="status-text">Connecting...</span>
+    </div>
+    <button class="refresh-btn" onclick="fetchData()">Refresh</button>
+  </div>
+
+  <div class="graph-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding:0 0.25rem">
+      <div class="graph-title" style="margin-bottom:0">Glucose Trend</div>
+      <div class="time-controls" style="margin-bottom:0;padding-left:0">
+        <button class="time-btn active" id="btn-1h" onclick="setWindow(12, this)">1 hr</button>
+        <button class="time-btn" id="btn-3h" onclick="setWindow(36, this)">3 hr</button>
+        <button class="time-btn" id="btn-6h" onclick="setWindow(72, this)">6 hr</button>
+      </div>
+    </div>
+    <div id="glucose-chart"></div>
+    <div class="range-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div> In Range (70–180)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div> High</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> Low</div>
+    </div>
+  </div>
+
+  <!-- Ask Ahead -->
+  <div class="ahead-card">
+    <div class="ahead-header">
+      <span class="ahead-title">Ask Ahead</span>
+      <button class="ask-btn" id="ask-btn" onclick="askAhead()">Ask Ahead</button>
+    </div>
+    <div class="ahead-response" id="ahead-response"></div>
+    <div class="ahead-disclaimer">Ahead provides pattern insights only — not medical advice. Always consult your care team.</div>
+  </div>
+
+<script>
+  const NS_URL = 'https://web-production-5e0b.up.railway.app';
+  const COUNT = 72; // fetch 6hr max so we have data for all windows
+  let cachedEntries = [];
+  let currentWindow = 12; // default 1 hour
+
+  function setWindow(count, btn) {
+    currentWindow = count;
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (cachedEntries.length > 0) {
+      renderChart([...cachedEntries].slice(0, count).reverse());
+    }
+  }
+
+  const ARROWS = {
+    DoubleUp: '↑↑', SingleUp: '↑', FortyFiveUp: '↗',
+    Flat: '→', FortyFiveDown: '↘', SingleDown: '↓', DoubleDown: '↓↓',
+    NOT_COMPUTABLE: '?', RATE_OUT_OF_RANGE: '⚡',
+  };
+
+  function getColor(sgv) {
+    if (sgv < 70)  return '#f87171';
+    if (sgv > 180) return '#fbbf24';
+    return '#34d399';
+  }
+
+  function formatTime(dateStr) {
+    return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  async function fetchData() {
+    document.getElementById('status-text').textContent = 'Updating...';
+    try {
+      const res = await fetch(`${NS_URL}/api/v1/entries.json?count=${COUNT}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data || data.length === 0) throw new Error('No entries returned');
+      cachedEntries = data;
+      renderCurrent(data[0]);
+      renderChart([...data].slice(0, currentWindow).reverse());
+      document.getElementById('status-text').textContent = `Live · updates every 5 min`;
+      document.getElementById('status-dot').style.background = '#34d399';
+    } catch (err) {
+      document.getElementById('status-text').textContent = `Error: ${err.message}`;
+      document.getElementById('status-dot').style.background = '#f87171';
+    }
+  }
+
+  function renderCurrent(entry) {
+    const { sgv, delta, direction = 'Flat' } = entry;
+
+    // glucose number
+    const el = document.getElementById('glucose-number');
+    el.textContent = sgv ?? '---';
+    el.className = 'glucose-number ' + (sgv < 70 ? 'low' : sgv > 180 ? 'high' : 'ok');
+
+    // trend arrow — colored to match glucose status
+    const arrowEl = document.getElementById('trend-arrow');
+    arrowEl.textContent = ARROWS[direction] || '→';
+    arrowEl.style.color = getColor(sgv);
+
+    // per-minute rate (delta is per 5 min from Nightscout)
+    const rateEl = document.getElementById('rate-per-min');
+    if (delta != null) {
+      const perMin = (delta / 5).toFixed(1);
+      const sign = delta > 0 ? '+' : '';
+      rateEl.textContent = `${sign}${perMin} mg/dL/min`;
+      rateEl.style.color = delta > 0 ? 'var(--high)' : delta < 0 ? 'var(--low)' : 'var(--ok)';
+    } else {
+      rateEl.textContent = '— mg/dL/min';
+      rateEl.style.color = 'var(--muted)';
+    }
+
+    // 5-min delta as context for mental math
+    const deltaEl = document.getElementById('delta-val');
+    if (delta != null) {
+      const sign = delta > 0 ? '+' : '';
+      deltaEl.textContent = `${sign}${delta} over last 5 min`;
+    } else {
+      deltaEl.textContent = '';
+    }
+
+    document.getElementById('timestamp').textContent = `Last reading: ${formatTime(entry.dateString)}`;
+  }
+
+  function renderChart(entries) {
+    const times = entries.map(e => new Date(e.dateString));
+    const values = entries.map(e => e.sgv);
+    const trace = {
+      x: times, y: values, type: 'scatter', mode: 'lines+markers',
+      line: { color: '#8b5cf6', width: 2.5, shape: 'spline' },
+      marker: { color: values.map(getColor), size: 5, line: { width: 0 } },
+      hovertemplate: '<b>%{y} mg/dL</b><br>%{x|%I:%M %p}<extra></extra>',
+    };
+    const layout = {
+      paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+      margin: { t: 10, r: 10, b: 40, l: 45 },
+      xaxis: { color: '#7c6fa0', tickfont: { size: 10, family: 'Inter' }, gridcolor: '#1e1035', showgrid: true, tickformat: '%I:%M' },
+      yaxis: { color: '#7c6fa0', tickfont: { size: 10, family: 'Inter' }, gridcolor: '#1e1035', showgrid: true, range: [40, 300] },
+      shapes: [
+        { type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 70, y1: 70, line: { color: '#f87171', width: 1, dash: 'dot' } },
+        { type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 180, y1: 180, line: { color: '#fbbf24', width: 1, dash: 'dot' } },
+        { type: 'rect', x0: 0, x1: 1, xref: 'paper', y0: 70, y1: 180, fillcolor: 'rgba(52,211,153,0.04)', line: { width: 0 } },
+      ],
+      showlegend: false,
+    };
+    Plotly.newPlot('glucose-chart', [trace], layout, { 
+      displayModeBar: false, 
+      responsive: true,
+      scrollZoom: false,
+      staticPlot: false,
+      modeBarButtonsToRemove: ['zoom2d','pan2d','select2d','lasso2d','zoomIn2d','zoomOut2d','autoScale2d','resetScale2d'],
+    });
+  }
+
+  async function askAhead() {
+    if (cachedEntries.length === 0) {
+      alert('No glucose data loaded yet. Wait for data to fetch first.');
+      return;
+    }
+
+    const btn = document.getElementById('ask-btn');
+    const responseEl = document.getElementById('ahead-response');
+
+    btn.disabled = true;
+    btn.textContent = 'Thinking...';
+    responseEl.className = 'ahead-response loading visible';
+    responseEl.innerHTML = '<div class="spinner"></div> Ahead is reading your data...';
+
+    // Build a summary of the last 3 hours for the AI
+    const latest = cachedEntries[0];
+    const readings = [...cachedEntries].reverse().map(e => ({
+      time: formatTime(e.dateString),
+      sgv: e.sgv,
+      direction: e.direction,
+      delta: e.delta
+    }));
+
+    const prompt = `You are Ahead, a proactive CGM (continuous glucose monitor) insight tool for a Type 1 diabetic. You are NOT a doctor and do NOT give dosing advice. You help users understand their glucose trends and give practical next steps.
+
+Here is the user's glucose data from the last 3 hours (oldest to newest):
+${readings.map(r => `${r.time}: ${r.sgv} mg/dL ${r.direction || ''} (delta: ${r.delta})`).join('\n')}
+
+Current reading: ${latest.sgv} mg/dL, trend: ${latest.direction}, delta: ${latest.delta} mg/dL
+
+Based on this data:
+1. Write 1-2 sentences describing what you see in plain language (no jargon).
+2. Give exactly 3 short, actionable options the user might consider right now. Be specific and practical. Do NOT recommend specific insulin doses. Format them as:
+OPTION 1: [text]
+OPTION 2: [text]  
+OPTION 3: [text]
+
+Keep the whole response under 150 words. Be direct and friendly, not clinical.`;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': 'AQ.Ab8RN6JfEH_5s9JWdkUyUUqkE4shUBXc0qoYZxed7kg2yX-PVg', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+
+      const data = await res.json();
+      const text = data.content?.[0]?.text || 'No response received.';
+
+      // Parse response into summary + options
+      const optionMatches = [...text.matchAll(/OPTION \d+:\s*(.+?)(?=OPTION \d+:|$)/gs)];
+      const summaryText = text.split('OPTION 1:')[0].trim();
+
+      let html = `<div style="margin-bottom:0.8rem">${summaryText}</div>`;
+      if (optionMatches.length > 0) {
+        html += '<ul class="option-list">';
+        optionMatches.forEach((m, i) => {
+          html += `<li class="option-item"><span class="option-num">${i + 1}</span>${m[1].trim()}</li>`;
+        });
+        html += '</ul>';
+      }
+
+      responseEl.className = 'ahead-response visible';
+      responseEl.innerHTML = html;
+    } catch (err) {
+      responseEl.className = 'ahead-response visible';
+      responseEl.innerHTML = `<span style="color:var(--low)">Error: ${err.message}</span>`;
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Ask Ahead';
+  }
+
+  fetchData();
+  setInterval(fetchData, 5 * 60 * 1000);
+</script>
+</body>
+</html>
