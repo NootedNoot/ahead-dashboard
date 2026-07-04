@@ -570,18 +570,15 @@ OPTION 3: [text]
 Keep the whole response under 150 words. Be direct and friendly, not clinical.`;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('https://ahead-backend-production-ee80.up.railway.app/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': 'AQ.Ab8RN6JfEH_5s9JWdkUyUUqkE4shUBXc0qoYZxed7kg2yX-PVg', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }]
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ readings, latest })
       });
 
       const data = await res.json();
-      const text = data.content?.[0]?.text || 'No response received.';
+      if (data.error) throw new Error(data.error);
+      const text = data.text || 'No response received.';
 
       // Parse response into summary + options
       const optionMatches = [...text.matchAll(/OPTION \d+:\s*(.+?)(?=OPTION \d+:|$)/gs)];
@@ -602,7 +599,6 @@ Keep the whole response under 150 words. Be direct and friendly, not clinical.`;
       responseEl.className = 'ahead-response visible';
       responseEl.innerHTML = `<span style="color:var(--low)">Error: ${err.message}</span>`;
     }
-
     btn.disabled = false;
     btn.textContent = 'Ask Ahead';
   }
