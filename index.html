@@ -357,6 +357,60 @@
       text-align: center;
       opacity: 0.7;
     }
+
+    /* Trend check card */
+    .trend-card {
+      width: 100%;
+      max-width: 700px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .trend-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .severity-badge {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.9rem;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .severity-badge.severity-none   { color: var(--ok);   background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.3); }
+    .severity-badge.severity-yellow { color: var(--high); background: rgba(251,191,36,0.1);  border-color: rgba(251,191,36,0.3); }
+    .severity-badge.severity-red    { color: var(--low);  background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); }
+
+    .trend-stats {
+      display: flex;
+      gap: 2.5rem;
+      flex-wrap: wrap;
+    }
+
+    .trend-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .trend-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
@@ -385,6 +439,24 @@
       <span class="status-text" id="status-text">Connecting...</span>
     </div>
     <button class="refresh-btn" onclick="fetchData()">Refresh</button>
+  </div>
+
+  <div class="trend-card" id="trend-card">
+    <div class="trend-header">
+      <span class="ahead-title">Ahead Trend Check</span>
+      <span class="severity-badge severity-none" id="severity-badge">—</span>
+    </div>
+    <div class="trend-stats">
+      <div class="trend-stat">
+        <span class="glucose-label">Rate</span>
+        <span class="trend-value" id="trend-rate">— mg/dL/min</span>
+      </div>
+      <div class="trend-stat">
+        <span class="glucose-label">Projected (15m)</span>
+        <span class="trend-value" id="trend-projected">— mg/dL</span>
+      </div>
+    </div>
+    <span class="timestamp" id="trend-timestamp">No trend data yet</span>
   </div>
 
   <div class="graph-card">
@@ -416,6 +488,7 @@
 
 <script>
   const NS_URL = 'https://web-production-5e0b.up.railway.app';
+  const BACKEND_URL = 'https://your-backend.example.com'; // TODO: point at your deployed ahead-backend
   const COUNT = 72; // fetch 6hr max so we have data for all windows
   let cachedEntries = [];
   let currentWindow = 12; // default 1 hour
@@ -607,8 +680,41 @@ Keep the whole response under 150 words. Be direct and friendly, not clinical.`;
     btn.textContent = 'Ask Ahead';
   }
 
+  function formatRate(rate) {
+    if (rate == null) return '— mg/dL/min';
+    const sign = rate > 0 ? '+' : '';
+    return `${sign}${rate.toFixed(1)} mg/dL/min`;
+  }
+
+  async function fetchLatestTrend() {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/latest-trend`);
+
+      if (res.status === 404) {
+        document.getElementById('trend-timestamp').textContent = 'No trend data yet';
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+
+      const badge = document.getElementById('severity-badge');
+      badge.textContent = data.severity;
+      badge.className = `severity-badge severity-${data.severity}`;
+
+      document.getElementById('trend-rate').textContent = formatRate(data.rate);
+      document.getElementById('trend-projected').textContent = data.projected != null ? `${data.projected} mg/dL` : '— mg/dL';
+      document.getElementById('trend-timestamp').textContent = `Trend as of ${formatTime(data.date)}`;
+    } catch (err) {
+      document.getElementById('trend-timestamp').textContent = `Error: ${err.message}`;
+    }
+  }
+
   fetchData();
   setInterval(fetchData, 5 * 60 * 1000);
+
+  fetchLatestTrend();
+  setInterval(fetchLatestTrend, 30 * 1000);
 </script>
 </body>
 </html>
