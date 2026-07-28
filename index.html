@@ -411,6 +411,19 @@
       font-weight: 700;
       color: var(--text);
     }
+
+    .test-mode-toggle {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+    }
+
+    .test-mode-toggle input {
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -480,7 +493,13 @@
   <div class="ahead-card">
     <div class="ahead-header">
       <span class="ahead-title">Ask Ahead</span>
-      <button class="ask-btn" id="ask-btn" onclick="askAhead()">Ask Ahead</button>
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <label class="test-mode-toggle">
+          <input type="checkbox" id="dry-run-toggle" />
+          Test mode
+        </label>
+        <button class="ask-btn" id="ask-btn" onclick="askAhead()">Ask Ahead</button>
+      </div>
     </div>
     <div class="ahead-response" id="ahead-response"></div>
     <div class="ahead-disclaimer">Ahead provides pattern insights only — not medical advice. Always consult your care team.</div>
@@ -637,11 +656,20 @@
       const res = await fetch(`${BACKEND_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ readings, latest })
+        body: JSON.stringify({
+          readings,
+          latest,
+          dryRun: document.getElementById('dry-run-toggle').checked
+        })
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      // A backend-provided error message (e.g. "Missing glucose data") is
+      // more specific than a bare HTTP status, so it takes priority; the
+      // status check is the fallback for a failure response with no error
+      // body at all.
+      if (data.error) throw new Error(data.error);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = data.text || 'No response received.';
 
       // Parse response into summary + options
@@ -663,7 +691,6 @@
       responseEl.className = 'ahead-response visible';
       responseEl.innerHTML = `<span style="color:var(--low)">Error: ${err.message}</span>`;
     }
-
     btn.disabled = false;
     btn.textContent = 'Ask Ahead';
   }
