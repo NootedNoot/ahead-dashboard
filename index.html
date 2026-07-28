@@ -488,7 +488,7 @@
 
 <script>
   const NS_URL = 'https://web-production-5e0b.up.railway.app';
-  const BACKEND_URL = 'https://your-backend.example.com'; // TODO: point at your deployed ahead-backend
+  const BACKEND_URL = 'https://ahead-backend-production-ee80.up.railway.app';
   const COUNT = 72; // fetch 6hr max so we have data for all windows
   let cachedEntries = [];
   let currentWindow = 12; // default 1 hour
@@ -617,7 +617,14 @@
     responseEl.className = 'ahead-response loading visible';
     responseEl.innerHTML = '<div class="spinner"></div> Ahead is reading your data...';
 
-    // Build a summary of the last 3 hours for the AI
+    // Build a summary of the last 3 hours. The prompt itself is built
+    // server-side by ahead-backend's /analyze (same shape it already expects,
+    // same wording it already used) - this page sends only the raw readings,
+    // never an AI credential of any kind. Previously this called
+    // api.anthropic.com directly with a hardcoded key embedded right here in
+    // this public page's source - anyone viewing source could lift and reuse
+    // it. Routing through the backend means the only thing exposed by a
+    // public caller is the readings they already typed in themselves.
     const latest = cachedEntries[0];
     const readings = [...cachedEntries].reverse().map(e => ({
       time: formatTime(e.dateString),
@@ -626,35 +633,16 @@
       delta: e.delta
     }));
 
-    const prompt = `You are Ahead, a proactive CGM (continuous glucose monitor) insight tool for a Type 1 diabetic. You are NOT a doctor and do NOT give dosing advice. You help users understand their glucose trends and give practical next steps.
-
-Here is the user's glucose data from the last 3 hours (oldest to newest):
-${readings.map(r => `${r.time}: ${r.sgv} mg/dL ${r.direction || ''} (delta: ${r.delta})`).join('\n')}
-
-Current reading: ${latest.sgv} mg/dL, trend: ${latest.direction}, delta: ${latest.delta} mg/dL
-
-Based on this data:
-1. Write 1-2 sentences describing what you see in plain language (no jargon).
-2. Give exactly 3 short, actionable options the user might consider right now. Be specific and practical. Do NOT recommend specific insulin doses. Format them as:
-OPTION 1: [text]
-OPTION 2: [text]  
-OPTION 3: [text]
-
-Keep the whole response under 150 words. Be direct and friendly, not clinical.`;
-
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch(`${BACKEND_URL}/analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': 'AQ.Ab8RN6JfEH_5s9JWdkUyUUqkE4shUBXc0qoYZxed7kg2yX-PVg', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }]
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ readings, latest })
       });
 
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const text = data.content?.[0]?.text || 'No response received.';
+      const text = data.text || 'No response received.';
 
       // Parse response into summary + options
       const optionMatches = [...text.matchAll(/OPTION \d+:\s*(.+?)(?=OPTION \d+:|$)/gs)];

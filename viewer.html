@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Ahead — Glucose Now</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d0618;
+      --text:    #e2d9f3;
+      --muted:   #7c6fa0;
+      --ok:      #34d399;
+      --high:    #fbbf24;
+      --low:     #f87171;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1.5rem;
+      text-align: center;
+      gap: 0.5rem;
+    }
+
+    .wordmark {
+      position: absolute;
+      top: 1.5rem;
+      left: 0;
+      right: 0;
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .number {
+      font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+      font-size: clamp(6rem, 32vw, 13rem);
+      font-weight: 700;
+      line-height: 1;
+      transition: color 0.6s ease;
+    }
+
+    .number.ok   { color: var(--ok); }
+    .number.high { color: var(--high); }
+    .number.low  { color: var(--low); }
+    .number.unknown { color: var(--muted); }
+
+    .unit {
+      font-size: clamp(1rem, 3.5vw, 1.5rem);
+      color: var(--muted);
+      margin-top: -0.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    .status {
+      font-size: clamp(1.4rem, 6vw, 2.2rem);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-top: 1.25rem;
+      transition: color 0.6s ease;
+    }
+
+    .status.ok   { color: var(--ok); }
+    .status.high { color: var(--high); }
+    .status.low  { color: var(--low); }
+    .status.unknown { color: var(--muted); }
+
+    .meta {
+      font-size: clamp(0.85rem, 2.8vw, 1rem);
+      color: var(--muted);
+      margin-top: 1.75rem;
+    }
+
+    .meta.stale { color: var(--high); }
+
+    /* No dosing guidance, no trend, no chart, no settings, no chat - this
+       page's entire job is: one number, one word, one freshness note. */
+  </style>
+</head>
+<body>
+
+  <div class="wordmark">Ahead</div>
+
+  <div class="number unknown" id="number">—</div>
+  <div class="unit">mg/dL</div>
+  <div class="status unknown" id="status">Loading…</div>
+  <div class="meta" id="meta">Connecting…</div>
+
+<script>
+  // Same Nightscout instance the main dashboard reads from (ahead-dashboard's
+  // index.html NS_URL) - this page is deliberately a second, much simpler
+  // window onto that exact same live feed, not a separate pipeline.
+  const NS_URL = 'https://web-production-5e0b.up.railway.app';
+
+  // A CGM syncs roughly every 5 minutes. Past this, the last number is old
+  // enough that showing it with no warning would be actively misleading -
+  // matches the same "never show a stale reading as if it were current"
+  // principle the Ahead phone app itself follows.
+  const STALE_MINUTES = 20;
+
+  function classify(sgv) {
+    if (sgv < 70) return { cls: 'low', label: 'Low' };
+    if (sgv > 180) return { cls: 'high', label: 'High' };
+    return { cls: 'ok', label: 'In Range' };
+  }
+
+  function minutesAgo(dateString) {
+    return Math.floor((Date.now() - new Date(dateString).getTime()) / 60000);
+  }
+
+  function render(entry) {
+    const numberEl = document.getElementById('number');
+    const statusEl = document.getElementById('status');
+    const metaEl = document.getElementById('meta');
+
+    const age = minutesAgo(entry.dateString);
+    const { cls, label } = classify(entry.sgv);
+
+    numberEl.textContent = entry.sgv;
+    numberEl.className = 'number ' + cls;
+    statusEl.textContent = label;
+    statusEl.className = 'status ' + cls;
+
+    if (age > STALE_MINUTES) {
+      metaEl.textContent = `⚠ No new reading in ${age} min`;
+      metaEl.classList.add('stale');
+    } else {
+      const mins = age <= 0 ? 'just now' : `${age} min ago`;
+      metaEl.textContent = `Updated ${mins}`;
+      metaEl.classList.remove('stale');
+    }
+  }
+
+  function renderError(message) {
+    document.getElementById('number').textContent = '—';
+    document.getElementById('number').className = 'number unknown';
+    document.getElementById('status').textContent = 'Unavailable';
+    document.getElementById('status').className = 'status unknown';
+    document.getElementById('meta').textContent = message;
+    document.getElementById('meta').classList.add('stale');
+  }
+
+  async function fetchLatest() {
+    try {
+      const res = await fetch(`${NS_URL}/api/v1/entries.json?count=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data || data.length === 0) throw new Error('No data yet');
+      render(data[0]);
+    } catch (err) {
+      renderError('Could not load glucose data');
+    }
+  }
+
+  fetchLatest();
+  setInterval(fetchLatest, 5 * 60 * 1000);
+</script>
+</body>
+</html>
