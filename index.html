@@ -250,112 +250,11 @@
 
     .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
 
-    /* Ask Ahead card */
-    .ahead-card {
-      width: 100%;
-      max-width: 700px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .ahead-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
     .ahead-title {
       font-size: 0.7rem;
       letter-spacing: 0.15em;
       text-transform: uppercase;
       color: var(--muted);
-    }
-
-    .ask-btn {
-      background: linear-gradient(135deg, #6d28d9, #8b5cf6);
-      border: none;
-      color: white;
-      font-size: 0.85rem;
-      font-weight: 600;
-      font-family: 'Inter', sans-serif;
-      padding: 0.6rem 1.4rem;
-      border-radius: 20px;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
-      letter-spacing: 0.03em;
-    }
-
-    .ask-btn:hover { opacity: 0.9; transform: translateY(-1px); }
-    .ask-btn:active { transform: translateY(0); }
-    .ask-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-    .ahead-response {
-      background: rgba(139,92,246,0.06);
-      border: 1px solid rgba(139,92,246,0.15);
-      border-radius: 14px;
-      padding: 1.2rem;
-      font-size: 0.9rem;
-      line-height: 1.65;
-      color: var(--text);
-      min-height: 80px;
-      display: none;
-    }
-
-    .ahead-response.visible { display: block; }
-
-    .ahead-response.loading {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--muted);
-      font-size: 0.85rem;
-    }
-
-    .spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      flex-shrink: 0;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .option-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 0.6rem;
-      margin-top: 0.8rem;
-    }
-
-    .option-item {
-      background: rgba(139,92,246,0.08);
-      border: 1px solid rgba(139,92,246,0.2);
-      border-radius: 10px;
-      padding: 0.7rem 1rem;
-      font-size: 0.85rem;
-      line-height: 1.5;
-    }
-
-    .option-num {
-      color: var(--accent2);
-      font-weight: 600;
-      margin-right: 0.4rem;
-    }
-
-    .ahead-disclaimer {
-      font-size: 0.65rem;
-      color: var(--muted);
-      text-align: center;
-      opacity: 0.7;
     }
 
     /* Trend check card */
@@ -412,18 +311,6 @@
       color: var(--text);
     }
 
-    .test-mode-toggle {
-      font-size: 0.75rem;
-      color: var(--muted);
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      cursor: pointer;
-    }
-
-    .test-mode-toggle input {
-      cursor: pointer;
-    }
   </style>
 </head>
 <body>
@@ -487,22 +374,6 @@
       <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div> High</div>
       <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> Low</div>
     </div>
-  </div>
-
-  <!-- Ask Ahead -->
-  <div class="ahead-card">
-    <div class="ahead-header">
-      <span class="ahead-title">Ask Ahead</span>
-      <div style="display:flex;align-items:center;gap:1rem;">
-        <label class="test-mode-toggle">
-          <input type="checkbox" id="dry-run-toggle" />
-          Test mode
-        </label>
-        <button class="ask-btn" id="ask-btn" onclick="askAhead()">Ask Ahead</button>
-      </div>
-    </div>
-    <div class="ahead-response" id="ahead-response"></div>
-    <div class="ahead-disclaimer">Ahead provides pattern insights only — not medical advice. Always consult your care team.</div>
   </div>
 
 <script>
@@ -620,79 +491,6 @@
       staticPlot: false,
       modeBarButtonsToRemove: ['zoom2d','pan2d','select2d','lasso2d','zoomIn2d','zoomOut2d','autoScale2d','resetScale2d'],
     });
-  }
-
-  async function askAhead() {
-    if (cachedEntries.length === 0) {
-      alert('No glucose data loaded yet. Wait for data to fetch first.');
-      return;
-    }
-
-    const btn = document.getElementById('ask-btn');
-    const responseEl = document.getElementById('ahead-response');
-
-    btn.disabled = true;
-    btn.textContent = 'Thinking...';
-    responseEl.className = 'ahead-response loading visible';
-    responseEl.innerHTML = '<div class="spinner"></div> Ahead is reading your data...';
-
-    // Build a summary of the last 3 hours. The prompt itself is built
-    // server-side by ahead-backend's /analyze (same shape it already expects,
-    // same wording it already used) - this page sends only the raw readings,
-    // never an AI credential of any kind. Previously this called
-    // api.anthropic.com directly with a hardcoded key embedded right here in
-    // this public page's source - anyone viewing source could lift and reuse
-    // it. Routing through the backend means the only thing exposed by a
-    // public caller is the readings they already typed in themselves.
-    const latest = cachedEntries[0];
-    const readings = [...cachedEntries].reverse().map(e => ({
-      time: formatTime(e.dateString),
-      sgv: e.sgv,
-      direction: e.direction,
-      delta: e.delta
-    }));
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          readings,
-          latest,
-          dryRun: document.getElementById('dry-run-toggle').checked
-        })
-      });
-
-      const data = await res.json();
-      // A backend-provided error message (e.g. "Missing glucose data") is
-      // more specific than a bare HTTP status, so it takes priority; the
-      // status check is the fallback for a failure response with no error
-      // body at all.
-      if (data.error) throw new Error(data.error);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = data.text || 'No response received.';
-
-      // Parse response into summary + options
-      const optionMatches = [...text.matchAll(/OPTION \d+:\s*(.+?)(?=OPTION \d+:|$)/gs)];
-      const summaryText = text.split('OPTION 1:')[0].trim();
-
-      let html = `<div style="margin-bottom:0.8rem">${summaryText}</div>`;
-      if (optionMatches.length > 0) {
-        html += '<ul class="option-list">';
-        optionMatches.forEach((m, i) => {
-          html += `<li class="option-item"><span class="option-num">${i + 1}</span>${m[1].trim()}</li>`;
-        });
-        html += '</ul>';
-      }
-
-      responseEl.className = 'ahead-response visible';
-      responseEl.innerHTML = html;
-    } catch (err) {
-      responseEl.className = 'ahead-response visible';
-      responseEl.innerHTML = `<span style="color:var(--low)">Error: ${err.message}</span>`;
-    }
-    btn.disabled = false;
-    btn.textContent = 'Ask Ahead';
   }
 
   function formatRate(rate) {
