@@ -311,6 +311,41 @@
       color: var(--text);
     }
 
+    /* Disclaimer banner - deliberately styled off the accent/purple palette,
+       not the green/amber/red status colors, so it never reads as a live
+       glucose alert. */
+    .disclaimer-banner {
+      width: 100%;
+      max-width: 700px;
+      background: rgba(139,92,246,0.07);
+      border: 1px solid rgba(139,92,246,0.35);
+      border-radius: 16px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    .disclaimer-banner .warn-icon {
+      font-size: 1rem;
+      line-height: 1.5;
+      color: var(--accent2);
+      flex-shrink: 0;
+    }
+
+    .disclaimer-banner strong { color: var(--accent2); }
+
+    .footer-disclaimer {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-align: center;
+      max-width: 700px;
+      line-height: 1.5;
+    }
+
   </style>
 </head>
 <body>
@@ -319,6 +354,11 @@
     <span class="logo">Ahead</span>
     <span class="tagline">Catch it before the thing beeps.</span>
   </header>
+
+  <div class="disclaimer-banner">
+    <span class="warn-icon">⚠</span>
+    <span><strong>Backup display only</strong> — not a replacement for your primary CGM setup, and not the main thing to rely on for a Dexcom G7. Ahead depends on other servers (Nightscout, a backend relay) that can lag or go down on their own. Keep your official CGM app/receiver running as your main source for readings and alarms — if Ahead is slow, wrong, or offline, your primary CGM keeps working normally. Don't use Ahead alone to make treatment decisions.</span>
+  </div>
 
   <div class="glucose-card">
     <span class="glucose-label">Current Glucose</span>
@@ -375,6 +415,8 @@
       <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> Low</div>
     </div>
   </div>
+
+  <div class="footer-disclaimer">Ahead is an independent personal project — not a medical device, not FDA-approved, and not affiliated with or endorsed by Dexcom.</div>
 
 <script>
   const NS_URL = 'https://web-production-5e0b.up.railway.app';

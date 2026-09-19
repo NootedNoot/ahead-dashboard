@@ -47,6 +47,16 @@
       color: var(--muted);
     }
 
+    .disclaimer {
+      display: block;
+      margin-top: 0.35rem;
+      font-weight: 400;
+      font-size: 0.6rem;
+      letter-spacing: 0.03em;
+      text-transform: none;
+      color: var(--muted);
+    }
+
     .number {
       font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
       font-size: clamp(6rem, 32vw, 13rem);
@@ -95,7 +105,7 @@
 </head>
 <body>
 
-  <div class="wordmark">Ahead</div>
+  <div class="wordmark">Ahead<br><span class="disclaimer">Backup display — not your primary CGM</span></div>
 
   <div class="number unknown" id="number">—</div>
   <div class="unit">mg/dL</div>
